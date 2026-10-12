@@ -2,21 +2,121 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#07060b">
+  <meta name="description" content="An archive of memories. Leave an image, a voice, a few words.">
   <title>Leave Your Traces</title>
-  <style>
-    html, body { height: 100%; margin: 0; }
-    body {
-      display: grid;
-      place-items: center;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: #fafaf8;
-      color: #222;
-    }
-    h1 { font-weight: 500; letter-spacing: 0.02em; }
-  </style>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500&family=VT323&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-  <h1>Hello</h1>
+  <canvas id="tree" aria-label="A tree whose branches are the memories people have left"></canvas>
+  <div class="crt" aria-hidden="true"></div>
+
+  <header class="hud hud-top">
+    <h1>LEAVE YOUR TRACES</h1>
+    <p class="sub">memory archive <span class="dim">//</span> <span id="count">—</span> traces held</p>
+  </header>
+
+  <p class="hud hint" id="hint">drag to wander · scroll to drift closer · touch a memory</p>
+
+  <button class="btn btn-main" id="open-compose" type="button">
+    <span class="plus">+</span> leave a trace
+  </button>
+
+  <p class="empty" id="empty" hidden>the tree is bare.<br>be the first to leave something here.</p>
+
+  <!-- one memory, opened -->
+  <aside class="panel" id="detail" hidden aria-label="Memory">
+    <button class="close" type="button" data-close aria-label="Close">×</button>
+    <div class="panel-scroll">
+      <figure class="frame">
+        <img id="d-image" alt="">
+      </figure>
+      <div class="meta">
+        <span class="who" id="d-name"></span>
+        <span class="contact" id="d-contact"></span>
+        <time id="d-time"></time>
+      </div>
+      <p class="memory-text" id="d-text"></p>
+
+      <div class="player" id="d-player" hidden>
+        <button class="play" id="d-play" type="button" aria-label="Play recording">▶</button>
+        <div class="bar" id="d-bar"><i id="d-fill"></i></div>
+        <span class="clock" id="d-clock">0:00</span>
+      </div>
+
+      <section class="thread">
+        <h2>echoes <span class="dim" id="d-replies"></span></h2>
+        <ul class="comments" id="d-comments"></ul>
+        <form class="say" id="comment-form">
+          <p class="replying" id="replying" hidden>
+            replying to <b id="replying-name"></b>
+            <button type="button" id="replying-cancel" aria-label="Cancel reply">×</button>
+          </p>
+          <textarea id="c-text" rows="3" maxlength="1000" placeholder="this reminds me of…" required></textarea>
+          <div class="row">
+            <input id="c-name" type="text" maxlength="40" placeholder="your name" autocomplete="nickname">
+            <input id="c-contact" type="text" maxlength="80" placeholder="where to find you (public, optional)">
+          </div>
+          <div class="row end">
+            <span class="status" id="c-status" role="status"></span>
+            <button class="btn" type="submit">send echo</button>
+          </div>
+        </form>
+      </section>
+    </div>
+  </aside>
+
+  <!-- leaving a new one -->
+  <div class="veil" id="compose" hidden>
+    <form class="panel modal" id="compose-form" aria-label="Leave a trace">
+      <button class="close" type="button" data-close aria-label="Close">×</button>
+      <div class="panel-scroll">
+        <h2>leave a trace</h2>
+
+        <label class="drop" id="drop">
+          <input id="f-image" type="file" accept="image/*" hidden>
+          <img id="f-preview" alt="" hidden>
+          <span id="f-prompt">
+            <b>01 · image</b>
+            tap to scan with your camera<br>or pick a photo
+          </span>
+        </label>
+
+        <div class="recorder">
+          <b>02 · voice <span class="dim">(optional, up to 60s)</span></b>
+          <div class="rec-row">
+            <button class="btn rec" id="rec" type="button">● record</button>
+            <canvas id="rec-meter" width="240" height="32" aria-hidden="true"></canvas>
+            <span class="clock" id="rec-clock">0:00</span>
+          </div>
+          <div class="rec-row" id="rec-done" hidden>
+            <audio id="rec-audio" controls></audio>
+            <button class="btn ghost" id="rec-clear" type="button">discard</button>
+          </div>
+        </div>
+
+        <label class="field">
+          <b>03 · words <span class="dim">(optional)</span></b>
+          <textarea id="f-text" rows="4" maxlength="1000" placeholder="what do you want to remember?"></textarea>
+        </label>
+
+        <div class="row">
+          <input id="f-name" type="text" maxlength="40" placeholder="your name" autocomplete="nickname">
+          <input id="f-contact" type="text" maxlength="80" placeholder="where to find you (public, optional)">
+        </div>
+
+        <div class="row end">
+          <span class="status" id="f-status" role="status"></span>
+          <button class="btn btn-main inline" type="submit" id="f-submit">graft it onto the tree</button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <script src="/app.js" type="module"></script>
 </body>
 </html>
