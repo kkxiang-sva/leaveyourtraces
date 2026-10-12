@@ -1,14 +1,14 @@
 :root {
-  --bg: #07060b;
-  --ink: #d9d3c3;
-  --dim: #7d7788;
-  --cyan: #5ef2ff;
-  --magenta: #ff3d9a;
-  --amber: #ffb84d;
-  --line: rgba(94, 242, 255, 0.28);
-  --glass: rgba(10, 8, 18, 0.9);
+  --bg: #0a0a09;
+  --ink: #e2ded3;
+  --dim: #77746c;
+  --cyan: #c9c5ba; /* secondary ink */
+  --magenta: #d6a45f; /* the one accent */
+  --amber: #d6a45f;
+  --line: rgba(226, 222, 211, 0.16);
+  --glass: rgba(10, 10, 9, 0.92);
   --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, "PingFang SC", "Noto Sans SC", monospace;
-  --display: "VT323", var(--mono);
+  --display: var(--mono);
 }
 
 * { box-sizing: border-box; }
@@ -45,7 +45,7 @@ html, body {
   z-index: 50;
   pointer-events: none;
   background:
-    repeating-linear-gradient(to bottom, rgba(0, 0, 0, 0) 0 2px, rgba(0, 0, 0, 0.22) 2px 3px),
+    repeating-linear-gradient(to bottom, rgba(0, 0, 0, 0) 0 2px, rgba(0, 0, 0, 0.12) 2px 3px),
     radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, 0.6) 100%);
   mix-blend-mode: multiply;
 }
@@ -65,17 +65,16 @@ html, body {
 }
 .hud-top h1 {
   margin: 0;
-  font: 400 34px/1 var(--display);
-  letter-spacing: 0.12em;
-  color: var(--amber);
-  text-shadow: 2px 0 var(--magenta), -2px 0 rgba(94, 242, 255, 0.7), 0 0 18px rgba(255, 184, 77, 0.45);
+  font: 400 13px/1 var(--mono);
+  letter-spacing: 0.42em;
+  color: var(--ink);
 }
 .sub {
-  margin: 6px 0 0;
-  font-size: 11px;
-  letter-spacing: 0.14em;
+  margin: 10px 0 0;
+  font-size: 10px;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: var(--cyan);
+  color: var(--dim);
 }
 .hint {
   left: 20px;
@@ -95,10 +94,10 @@ html, body {
   transform: translateX(-50%);
   margin: 0;
   text-align: center;
-  font: 400 22px/1.3 var(--display);
-  letter-spacing: 0.08em;
-  color: var(--cyan);
-  text-shadow: 0 0 12px rgba(94, 242, 255, 0.6);
+  font: 300 12px/2 var(--mono);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink);
   pointer-events: none;
   animation: flicker 4s infinite;
 }
@@ -114,7 +113,7 @@ html, body {
 .btn {
   appearance: none;
   border: 1px solid var(--line);
-  background: rgba(94, 242, 255, 0.06);
+  background: rgba(226, 222, 211, 0.06);
   color: var(--cyan);
   font: 500 12px/1 var(--mono);
   letter-spacing: 0.12em;
@@ -124,21 +123,21 @@ html, body {
   transition: background 0.15s, box-shadow 0.15s, color 0.15s, border-color 0.15s;
 }
 .btn:hover:not(:disabled) {
-  background: rgba(94, 242, 255, 0.16);
-  box-shadow: 0 0 16px rgba(94, 242, 255, 0.35);
+  background: rgba(226, 222, 211, 0.14);
+  border-color: rgba(226, 222, 211, 0.4);
 }
 .btn:disabled { opacity: 0.45; cursor: default; }
 .btn.ghost { border-color: transparent; background: none; color: var(--dim); }
 
 .btn-main {
   border-color: var(--magenta);
-  background: rgba(255, 61, 154, 0.12);
-  color: #ffd6ea;
-  box-shadow: 0 0 22px rgba(255, 61, 154, 0.35), inset 0 0 12px rgba(255, 61, 154, 0.2);
+  background: rgba(10, 10, 9, 0.6);
+  color: var(--magenta);
 }
 .btn-main:hover:not(:disabled) {
-  background: rgba(255, 61, 154, 0.28);
-  box-shadow: 0 0 30px rgba(255, 61, 154, 0.6), inset 0 0 12px rgba(255, 61, 154, 0.3);
+  background: var(--magenta);
+  color: var(--bg);
+  box-shadow: none;
 }
 #open-compose {
   position: fixed;
@@ -148,7 +147,7 @@ html, body {
   padding: 14px 18px;
   font-size: 13px;
 }
-.plus { font: 400 20px/0 var(--display); margin-right: 4px; }
+.plus { margin-right: 6px; }
 
 :focus-visible { outline: 1px dashed var(--amber); outline-offset: 3px; }
 
@@ -162,7 +161,7 @@ html, body {
   width: min(440px, 100vw);
   background: var(--glass);
   border-left: 1px solid var(--line);
-  box-shadow: -20px 0 60px rgba(0, 0, 0, 0.6);
+  box-shadow: -20px 0 60px rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   animation: slide 0.28s ease-out;
@@ -186,7 +185,7 @@ html, body {
   border: 1px solid var(--line);
   background: var(--bg);
   color: var(--cyan);
-  font: 400 24px/1 var(--display);
+  font: 300 20px/1 var(--mono);
   cursor: pointer;
 }
 .close:hover { color: var(--magenta); border-color: var(--magenta); }
@@ -216,9 +215,9 @@ html, body {
 
 .panel h2 {
   margin: 0 0 16px;
-  font: 400 26px/1 var(--display);
-  letter-spacing: 0.1em;
-  color: var(--amber);
+  font: 400 12px/1 var(--mono);
+  letter-spacing: 0.34em;
+  color: var(--ink);
   text-transform: uppercase;
 }
 
@@ -249,7 +248,7 @@ html, body {
   margin-top: 16px;
   font-size: 12px;
 }
-.who { color: var(--cyan); font-weight: 500; letter-spacing: 0.06em; }
+.who { color: var(--ink); font-weight: 500; letter-spacing: 0.06em; }
 .who::before { content: "@ "; color: var(--dim); }
 .contact { color: var(--amber); overflow-wrap: anywhere; }
 .contact:not(:empty)::before { content: "↳ "; color: var(--dim); }
@@ -264,8 +263,8 @@ time { color: var(--dim); margin-left: auto; font-size: 11px; }
   gap: 12px;
   margin-top: 18px;
   padding: 10px 12px;
-  border: 1px solid rgba(255, 61, 154, 0.4);
-  background: rgba(255, 61, 154, 0.06);
+  border: 1px solid rgba(214, 164, 95, 0.4);
+  background: rgba(214, 164, 95, 0.06);
 }
 .play {
   flex: none;
@@ -277,25 +276,24 @@ time { color: var(--dim); margin-left: auto; font-size: 11px; }
   font-size: 13px;
   cursor: pointer;
 }
-.play:hover { background: rgba(255, 61, 154, 0.2); }
+.play:hover { background: rgba(214, 164, 95, 0.2); }
 .bar { flex: 1; height: 16px; cursor: pointer; display: flex; align-items: center; }
 .bar i {
   display: block;
   height: 2px;
   width: 0;
   background: var(--magenta);
-  box-shadow: 0 0 10px var(--magenta);
 }
 .bar {
-  background: linear-gradient(rgba(255, 61, 154, 0.25), rgba(255, 61, 154, 0.25)) center / 100% 2px no-repeat;
+  background: linear-gradient(rgba(214, 164, 95, 0.25), rgba(214, 164, 95, 0.25)) center / 100% 2px no-repeat;
 }
 .clock { font-size: 11px; color: var(--dim); font-variant-numeric: tabular-nums; }
 
 /* thread */
 .thread { margin-top: 30px; padding-top: 20px; border-top: 1px dashed var(--line); }
-.thread h2 { font-size: 22px; margin-bottom: 12px; }
+.thread h2 { margin-bottom: 12px; }
 .comments, .comments ul { list-style: none; margin: 0; padding: 0; }
-.comments ul { margin-left: 10px; padding-left: 12px; border-left: 1px solid rgba(94, 242, 255, 0.16); }
+.comments ul { margin-left: 10px; padding-left: 12px; border-left: 1px solid rgba(226, 222, 211, 0.16); }
 .comments li { margin-top: 14px; }
 .comments .meta { margin-top: 0; }
 .comments p { margin: 2px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -326,10 +324,9 @@ textarea, input[type="text"] {
 }
 textarea:focus, input[type="text"]:focus {
   outline: none;
-  border-color: var(--cyan);
-  box-shadow: 0 0 14px rgba(94, 242, 255, 0.25);
+  border-color: rgba(226, 222, 211, 0.5);
 }
-::placeholder { color: #5d586a; }
+::placeholder { color: #5a5852; }
 .row { display: flex; gap: 8px; margin-top: 8px; }
 .row.end { justify-content: flex-end; align-items: center; margin-top: 12px; }
 .status { margin-right: auto; font-size: 12px; color: var(--amber); }
@@ -360,14 +357,14 @@ textarea:focus, input[type="text"]:focus {
   cursor: pointer;
   transition: border-color 0.15s, background 0.15s;
 }
-.drop:hover { border-color: var(--cyan); background: rgba(94, 242, 255, 0.05); }
+.drop:hover { border-color: var(--cyan); background: rgba(226, 222, 211, 0.05); }
 .drop img { max-width: 100%; max-height: 240px; display: block; }
 
 .recorder { margin-top: 18px; }
 .rec-row { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
-.rec { flex: none; color: var(--magenta); border-color: rgba(255, 61, 154, 0.5); background: rgba(255, 61, 154, 0.06); }
-.rec.live { color: #fff; background: rgba(255, 61, 154, 0.4); animation: pulse 1s infinite; }
-@keyframes pulse { 50% { box-shadow: 0 0 22px rgba(255, 61, 154, 0.8); } }
+.rec { flex: none; color: var(--magenta); border-color: rgba(214, 164, 95, 0.5); background: rgba(214, 164, 95, 0.06); }
+.rec.live { color: var(--ink); background: rgba(214, 164, 95, 0.4); animation: pulse 1s infinite; }
+@keyframes pulse { 50% { background: rgba(214, 164, 95, 0.15); } }
 #rec-meter { flex: 1; min-width: 0; height: 32px; }
 #rec-audio { flex: 1; min-width: 0; height: 36px; }
 .inline { position: static; }

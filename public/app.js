@@ -5,9 +5,9 @@ const $ = (id) => document.getElementById(id);
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const TAU = Math.PI * 2;
 
-const CYAN = '94, 242, 255';
-const MAGENTA = '255, 61, 154';
-const AMBER = '255, 184, 77';
+const INK = '226, 222, 211';
+const ACCENT = '214, 164, 95';
+const BG = '#0a0a09';
 
 const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -83,9 +83,9 @@ function grow(x, y, angle, len, depth, rootY) {
 
 // Phyllotaxis around the crown: stable, so a memory stays where it was hung
 // while newer ones spiral outward.
-function place(i) {
+function place(i, push = 0) {
   const a = i * 2.39996323 + 0.9;
-  const r = 120 + 58 * Math.sqrt(i);
+  const r = 120 + 58 * Math.sqrt(i) + push;
   let x = Math.cos(a) * r * 1.25;
   x += Math.sign(x || 1) * 46;
   let dy = Math.sin(a) * r;
@@ -98,9 +98,13 @@ function addNode(trace, delay) {
   const img = new Image();
   img.decoding = 'async';
   img.src = `/api/traces/${trace.id}/thumb`;
+  // squashing the spiral can land two memories on top of each other
+  let spot = place(i);
+  const crowded = (p) => [...nodes.values()].some((n) => Math.hypot(n.x - p.x, n.y - p.y) < 112);
+  for (let push = 30; crowded(spot) && push < 600; push += 30) spot = place(i, push);
   const node = {
     trace, i, img,
-    ...place(i),
+    ...spot,
     tilt: (mulberry(i * 7919 + 13)() - 0.5) * 0.18,
     born: performance.now() + delay,
     fx: 0, fy: 0, w: THUMB, h: THUMB,
@@ -180,68 +184,48 @@ function line(points) {
 }
 
 function drawGround(t) {
-  // a low striped sun behind the trunk
-  const sun = ctx.createLinearGradient(0, -170, 0, 0);
-  sun.addColorStop(0, `rgba(${AMBER}, 0.2)`);
-  sun.addColorStop(1, `rgba(${MAGENTA}, 0.26)`);
-  ctx.fillStyle = sun;
-  for (let k = 0; k < 9; k++) {
-    const top = -170 + k * 19;
-    const bottom = Math.min(0, top + 19 - k * 1.6);
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(-180, top, 360, bottom - top);
-    ctx.clip();
-    ctx.beginPath();
-    ctx.arc(0, 0, 170, Math.PI, TAU);
-    ctx.fill();
-    ctx.restore();
-  }
+  // a single horizon, fading out to either side
+  const horizon = ctx.createLinearGradient(-900, 0, 900, 0);
+  horizon.addColorStop(0, `rgba(${INK}, 0)`);
+  horizon.addColorStop(0.5, `rgba(${INK}, 0.4)`);
+  horizon.addColorStop(1, `rgba(${INK}, 0)`);
+  ctx.strokeStyle = horizon;
+  ctx.lineWidth = 0.8;
+  line([-900, 0, 900, 0]);
 
-  // perspective floor
-  const fade = ctx.createLinearGradient(0, 0, 0, 380);
-  fade.addColorStop(0, `rgba(${MAGENTA}, 0.5)`);
-  fade.addColorStop(1, `rgba(${MAGENTA}, 0)`);
-  ctx.strokeStyle = fade;
-  ctx.lineWidth = 1;
+  // rings spreading across the floor from the foot of the trunk
+  ctx.save();
   ctx.beginPath();
-  for (let j = -16; j <= 16; j++) {
-    ctx.moveTo(j * 26, 0);
-    ctx.lineTo(j * 240, 380);
+  ctx.rect(-2000, 0.5, 4000, 600);
+  ctx.clip();
+  ctx.lineWidth = 0.7;
+  for (let k = 0; k < 7; k++) {
+    const p = (k + (t * 0.04) % 1) / 7;
+    const r = 40 + p * p * 900;
+    ctx.strokeStyle = `rgba(${INK}, ${0.22 * (1 - p)})`;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, r, r * 0.2, 0, 0, TAU);
+    ctx.stroke();
   }
-  const drift = (t * 0.12) % 1;
-  for (let k = 0; k < 11; k++) {
-    const y = 5 * Math.pow(1.5, k + drift);
-    if (y > 380) break;
-    ctx.moveTo(-3800, y);
-    ctx.lineTo(3800, y);
-  }
-  ctx.stroke();
-
-  ctx.strokeStyle = `rgba(${MAGENTA}, 0.9)`;
-  ctx.shadowColor = `rgb(${MAGENTA})`;
-  ctx.shadowBlur = 14;
-  line([-3800, 0, 3800, 0]);
-  ctx.shadowBlur = 0;
+  ctx.restore();
 }
 
 function drawTrunk(t) {
   ctx.lineCap = 'round';
-  ctx.shadowBlur = 12;
+  ctx.shadowColor = `rgba(${INK}, 0.6)`;
+  ctx.shadowBlur = 8;
   for (const s of strands) {
-    const grad = ctx.createLinearGradient(0, 380, 0, -H);
-    grad.addColorStop(0, `rgba(${AMBER}, 0)`);
-    grad.addColorStop(0.38, `rgba(${AMBER}, 0.75)`);
-    grad.addColorStop(0.7, `rgba(${MAGENTA}, 0.7)`);
-    grad.addColorStop(0.93, `rgba(${CYAN}, 0.75)`);
-    grad.addColorStop(1, `rgba(${CYAN}, 0)`);
+    const grad = ctx.createLinearGradient(0, 300, 0, -H);
+    grad.addColorStop(0, `rgba(${INK}, 0)`);
+    grad.addColorStop(0.36, `rgba(${INK}, ${0.3 + s.hue * 0.35})`);
+    grad.addColorStop(0.9, `rgba(${INK}, ${0.25 + s.hue * 0.3})`);
+    grad.addColorStop(1, `rgba(${INK}, 0)`);
     ctx.strokeStyle = grad;
-    ctx.shadowColor = s.hue > 0.5 ? `rgb(${MAGENTA})` : `rgb(${CYAN})`;
-    ctx.lineWidth = 1 + s.hue * 1.6;
+    ctx.lineWidth = 0.6 + s.hue * 1.1;
     ctx.beginPath();
     // the fibres run out along the floor before they climb
     const foot = strandX(s, 0, t);
-    ctx.moveTo(foot * 7, 380);
+    ctx.moveTo(foot * 7, 300);
     ctx.lineTo(foot, 0);
     for (let y = -10; y >= -H; y -= 10) ctx.lineTo(strandX(s, y, t), y);
     ctx.stroke();
@@ -249,9 +233,9 @@ function drawTrunk(t) {
     // a pulse climbing each fibre
     const p = (t * (0.05 + s.speed * 0.12) + s.phase) % 1;
     const py = -H * p;
-    ctx.fillStyle = `rgba(255, 255, 255, ${0.9 * Math.sin(p * Math.PI)})`;
+    ctx.fillStyle = `rgba(${ACCENT}, ${Math.sin(p * Math.PI)})`;
     ctx.beginPath();
-    ctx.arc(strandX(s, py, t), py, 1.8, 0, TAU);
+    ctx.arc(strandX(s, py, t), py, 1.5, 0, TAU);
     ctx.fill();
   }
   ctx.shadowBlur = 0;
@@ -261,41 +245,41 @@ function drawTwigs(t) {
   const sway = (y, depth) => Math.sin(t * 0.6 + y * 0.011) * depth * 2.2;
   for (const g of twigs) {
     const shift = trunkX(g.rootY, t);
-    ctx.strokeStyle = `rgba(${g.depth > 3 ? CYAN : '170, 120, 255'}, ${0.42 - g.depth * 0.055})`;
-    ctx.lineWidth = Math.max(0.5, 2.6 - g.depth * 0.45);
+    ctx.strokeStyle = `rgba(${INK}, ${0.3 - g.depth * 0.04})`;
+    ctx.lineWidth = Math.max(0.4, 1.8 - g.depth * 0.3);
     line([
       g.x1 + shift + sway(g.y1, g.depth - 1), g.y1,
       g.x2 + shift + sway(g.y2, g.depth), g.y2,
     ]);
   }
   for (const tip of tips) {
-    const glow = 0.35 + 0.35 * Math.sin(t * 1.3 + tip.phase);
-    ctx.fillStyle = `rgba(${AMBER}, ${glow})`;
+    const glow = 0.2 + 0.3 * Math.sin(t * 1.3 + tip.phase);
+    if (glow <= 0) continue;
+    ctx.fillStyle = `rgba(${INK}, ${glow})`;
     ctx.beginPath();
-    ctx.arc(tip.x + trunkX(tip.rootY, t) + sway(tip.y, tip.depth), tip.y, 1.5, 0, TAU);
+    ctx.arc(tip.x + trunkX(tip.rootY, t) + sway(tip.y, tip.depth), tip.y, 1, 0, TAU);
     ctx.fill();
   }
 }
 
 function drawAtmosphere(t, now) {
-  const halo = ctx.createRadialGradient(0, -H * 0.9, 0, 0, -H * 0.9, 760);
-  halo.addColorStop(0, 'rgba(120, 50, 190, 0.22)');
-  halo.addColorStop(0.5, 'rgba(60, 30, 120, 0.08)');
-  halo.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  const halo = ctx.createRadialGradient(0, -H * 0.85, 0, 0, -H * 0.85, 700);
+  halo.addColorStop(0, `rgba(${INK}, 0.055)`);
+  halo.addColorStop(1, `rgba(${INK}, 0)`);
   ctx.fillStyle = halo;
-  ctx.fillRect(-900, -H * 0.9 - 800, 1800, 1600);
+  ctx.fillRect(-900, -H * 0.85 - 800, 1800, 1600);
 
   for (const d of dust) {
     const y = ((d.y - t * d.v) % 1450 + 1450) % 1450 - 1300;
-    ctx.fillStyle = `rgba(${CYAN}, ${0.18 + 0.3 * Math.abs(Math.sin(t * 0.7 + d.phase))})`;
+    ctx.fillStyle = `rgba(${INK}, ${0.08 + 0.2 * Math.abs(Math.sin(t * 0.7 + d.phase))})`;
     ctx.fillRect(d.x + Math.sin(t * 0.3 + d.phase) * 14, y, d.size, d.size);
   }
 
-  if (now > nextThought && thoughts.length < 7) {
+  if (now > nextThought && thoughts.length < 6) {
     spawnThought(now);
-    nextThought = now + 1800 + Math.random() * 2200;
+    nextThought = now + 2200 + Math.random() * 2600;
   }
-  ctx.font = '20px VT323, monospace';
+  ctx.font = '300 11px "IBM Plex Mono", monospace';
   ctx.textAlign = 'center';
   for (let i = thoughts.length - 1; i >= 0; i--) {
     const th = thoughts[i];
@@ -304,9 +288,28 @@ function drawAtmosphere(t, now) {
       thoughts.splice(i, 1);
       continue;
     }
-    ctx.fillStyle = `rgba(${CYAN}, ${0.3 * Math.sin(age * Math.PI)})`;
+    ctx.fillStyle = `rgba(${INK}, ${0.26 * Math.sin(age * Math.PI)})`;
     ctx.fillText(th.text, th.x + Math.sin(age * 5 + th.x) * 12, th.y - age * 90);
   }
+}
+
+// Memories hang in monochrome and only take their colour back when touched.
+function monochrome(img) {
+  const c = document.createElement('canvas');
+  c.width = img.naturalWidth;
+  c.height = img.naturalHeight;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  g.drawImage(img, 0, 0);
+  const data = g.getImageData(0, 0, c.width, c.height);
+  const px = data.data;
+  for (let i = 0; i < px.length; i += 4) {
+    const l = px[i] * 0.299 + px[i + 1] * 0.587 + px[i + 2] * 0.114;
+    px[i] = l * 0.98;
+    px[i + 1] = l * 0.96;
+    px[i + 2] = l * 0.9;
+  }
+  g.putImageData(data, 0, 0);
+  return c;
 }
 
 function drawNode(n, t, now) {
@@ -324,11 +327,12 @@ function drawNode(n, t, now) {
   const ax = trunkX(ay, t);
   const cx = ax + (n.fx - ax) * 0.15;
   const cy = n.fy + (ay - n.fy) * 0.2;
+  const tone = lit ? ACCENT : INK;
   const grad = ctx.createLinearGradient(ax, ay, n.fx, n.fy);
-  grad.addColorStop(0, `rgba(${MAGENTA}, ${lit ? 0.95 : 0.55})`);
-  grad.addColorStop(1, `rgba(${CYAN}, ${lit ? 0.95 : 0.5})`);
+  grad.addColorStop(0, `rgba(${tone}, ${lit ? 0.5 : 0.2})`);
+  grad.addColorStop(1, `rgba(${tone}, ${lit ? 0.95 : 0.55})`);
   ctx.strokeStyle = grad;
-  ctx.lineWidth = lit ? 2 : 1.2;
+  ctx.lineWidth = lit ? 1.2 : 0.8;
   ctx.beginPath();
   ctx.moveTo(ax, ay);
   const at = (p) => {
@@ -340,16 +344,16 @@ function drawNode(n, t, now) {
 
   if (age < 1) {
     const [tx, ty] = at(grown);
-    ctx.fillStyle = '#fff';
+    ctx.fillStyle = `rgb(${ACCENT})`;
     ctx.beginPath();
-    ctx.arc(tx, ty, 2.5, 0, TAU);
+    ctx.arc(tx, ty, 2, 0, TAU);
     ctx.fill();
     if (age < 0.75) return;
   } else {
     const [px, py] = at((t * 0.11 + n.i * 0.37) % 1);
-    ctx.fillStyle = `rgba(255, 255, 255, 0.8)`;
+    ctx.fillStyle = `rgba(${INK}, 0.8)`;
     ctx.beginPath();
-    ctx.arc(px, py, 1.5, 0, TAU);
+    ctx.arc(px, py, 1.1, 0, TAU);
     ctx.fill();
   }
 
@@ -359,44 +363,38 @@ function drawNode(n, t, now) {
     const k = THUMB / Math.max(n.img.naturalWidth, n.img.naturalHeight);
     n.w = n.img.naturalWidth * k;
     n.h = n.img.naturalHeight * k;
+    n.mono ??= monochrome(n.img);
   }
   const { w, h } = n;
   ctx.save();
   ctx.translate(n.fx, n.fy);
   ctx.rotate(n.tilt + Math.sin(t * 0.3 + n.i) * 0.04);
-  const pop = clamp((age - 0.75) / 0.25, 0, 1) * (lit ? 1.12 : 1);
+  const pop = clamp((age - 0.75) / 0.25, 0, 1) * (lit ? 1.1 : 1);
   ctx.scale(pop, pop);
 
-  ctx.shadowColor = lit ? `rgb(${MAGENTA})` : `rgb(${CYAN})`;
-  ctx.shadowBlur = lit ? 26 : 12;
-  ctx.fillStyle = '#07060b';
+  ctx.fillStyle = BG;
   ctx.fillRect(-w / 2 - 3, -h / 2 - 3, w + 6, h + 6);
-  ctx.shadowBlur = 0;
-
   if (loaded) {
-    ctx.globalAlpha = lit ? 1 : 0.84;
-    ctx.drawImage(n.img, -w / 2, -h / 2, w, h);
+    ctx.globalAlpha = lit ? 1 : 0.8;
+    ctx.drawImage(lit ? n.img : n.mono, -w / 2, -h / 2, w, h);
     ctx.globalAlpha = 1;
   } else {
-    ctx.fillStyle = `rgba(${CYAN}, 0.08)`;
+    ctx.fillStyle = `rgba(${INK}, 0.06)`;
     ctx.fillRect(-w / 2, -h / 2, w, h);
   }
-  // faint scanlines so photos sit in the same world as everything else
-  ctx.fillStyle = 'rgba(7, 6, 11, 0.22)';
-  for (let y = -h / 2; y < h / 2; y += 3) ctx.fillRect(-w / 2, y, w, 1);
 
-  ctx.strokeStyle = `rgba(${lit ? MAGENTA : CYAN}, ${lit ? 1 : 0.7})`;
-  ctx.lineWidth = 1;
+  ctx.strokeStyle = `rgba(${tone}, ${lit ? 1 : 0.45})`;
+  ctx.lineWidth = 0.7;
   ctx.strokeRect(-w / 2 - 3, -h / 2 - 3, w + 6, h + 6);
 
-  ctx.font = '9px "IBM Plex Mono", monospace';
+  ctx.font = '8px "IBM Plex Mono", monospace';
   ctx.textAlign = 'left';
-  ctx.fillStyle = `rgba(${lit ? AMBER : CYAN}, 0.9)`;
-  let label = '@' + n.trace.name;
+  ctx.fillStyle = `rgba(${tone}, ${lit ? 1 : 0.6})`;
+  let label = n.trace.name;
   if (label.length > 16) label = label.slice(0, 15) + '…';
-  if (n.trace.has_audio) label += ' ♪';
-  if (n.trace.replies) label += ' ·' + n.trace.replies;
-  ctx.fillText(label, -w / 2 - 3, h / 2 + 15);
+  if (n.trace.has_audio) label += '  ♪';
+  if (n.trace.replies) label += '  ' + n.trace.replies;
+  ctx.fillText(label.toUpperCase(), -w / 2 - 3, h / 2 + 15);
   ctx.restore();
 }
 
@@ -416,7 +414,7 @@ function frame(now) {
   }
 
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.fillStyle = '#07060b';
+  ctx.fillStyle = BG;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.setTransform(dpr * cam.s, 0, 0, dpr * cam.s, dpr * (vw / 2 - cam.x * cam.s), dpr * (vh / 2 - cam.y * cam.s));
 
@@ -824,7 +822,7 @@ function drawMeter(analyser) {
     }
     analyser.getByteTimeDomainData(data);
     g.clearRect(0, 0, m.width, m.height);
-    g.strokeStyle = `rgb(${MAGENTA})`;
+    g.strokeStyle = `rgb(${ACCENT})`;
     g.lineWidth = 1.5;
     g.beginPath();
     for (let i = 0; i < data.length; i++) {
