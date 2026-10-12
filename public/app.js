@@ -24,6 +24,10 @@ let vw = 0, vh = 0, dpr = 1;
 
 const cam = { x: 0, y: -380, s: 0.6 };
 let camTarget = null;
+// the tree turns about its trunk; dragging sideways spins it
+let rot = 0;
+let rotVel = 0;
+let rotTarget = null;
 let userMoved = false;
 
 // ------------------------------------------------------------- geometry
@@ -57,40 +61,51 @@ const strands = Array.from({ length: 11 }, (_, k) => ({
 function strandX(s, y, t) {
   const u = -y / H;
   const width = 9 + 62 * Math.exp(-u * 7) + 16 * u * u;
-  return trunkX(y, t) + (s.off * 0.55 + Math.sin(y * 0.021 + s.phase + t * s.speed) * 0.6) * width;
+  const around = y * 0.021 + s.phase + t * s.speed + rot;
+  return trunkX(y, t) * Math.cos(rot) + Math.cos(around) * width * (0.45 + s.hue * 0.6);
+}
+
+// Everything on the tree lives at (distance from the trunk, height, angle
+// around it) and is flattened here for the current rotation.
+const DEPTH = 1400;
+function project(r, y, az) {
+  const a = az + rot;
+  const z = r * Math.sin(a); // positive is the far side
+  const k = DEPTH / (DEPTH + z);
+  return { x: r * Math.cos(a) * k, y, z, k };
 }
 
 // Bare twigs that are always there, so the tree has a silhouette before
 // anyone has left anything.
 const twigs = [];
 const tips = [];
-function grow(x, y, angle, len, depth, rootY) {
+function grow(r, y, angle, len, depth, rootY, az) {
   if (depth > 5 || len < 12) {
-    tips.push({ x, y, rootY, depth, phase: rand() * TAU });
+    tips.push({ r, y, az, rootY, depth, phase: rand() * TAU });
     return;
   }
-  const x2 = x + Math.cos(angle) * len;
+  const r2 = r + Math.cos(angle) * len;
   const y2 = y + Math.sin(angle) * len;
-  twigs.push({ x1: x, y1: y, x2, y2, depth, rootY });
+  const az2 = az + (rand() - 0.5) * 0.9;
+  twigs.push({ r1: r, y1: y, az1: az, r2, y2, az2, depth, rootY });
   const forks = rand() < 0.3 ? 3 : 2;
   for (let i = 0; i < forks; i++) {
-    grow(x2, y2, angle + (rand() - 0.5) * 1.4, len * (0.6 + rand() * 0.22), depth + 1, rootY);
+    grow(r2, y2, angle + (rand() - 0.5) * 1.4, len * (0.6 + rand() * 0.22), depth + 1, rootY, az2);
   }
 }
 [
-  [0.5, -0.5], [0.62, -2.5], [0.74, -0.9], [0.84, -2.2], [0.93, -1.25], [1, -1.75], [1, -1.4],
-].forEach(([u, angle]) => grow(0, -H * u, angle, 95 + rand() * 40, 1, -H * u));
+  [0.5, -0.5], [0.62, -0.64], [0.74, -0.9], [0.84, -0.94], [0.93, -1.25], [1, -1.39], [1, -1.4],
+].forEach(([u, angle], k) => grow(0, -H * u, angle, 95 + rand() * 40, 1, -H * u, k * 2.39996323));
 
-// Phyllotaxis around the crown: stable, so a memory stays where it was hung
-// while newer ones spiral outward.
+// A golden-angle spiral around the trunk: stable, so a memory stays where
+// it was hung while newer ones settle further out.
 function place(i, push = 0) {
-  const a = i * 2.39996323 + 0.9;
-  const r = 120 + 58 * Math.sqrt(i) + push;
-  let x = Math.cos(a) * r * 1.25;
-  x += Math.sign(x || 1) * 46;
-  let dy = Math.sin(a) * r;
-  if (dy > 0) dy *= 0.5;
-  return { x, y: -H * 0.9 + dy * 0.85 };
+  const az = i * 2.39996323 + 0.9;
+  const r = 230 + 36 * Math.sqrt(i) + push;
+  // not the golden ratio again, or height and angle line up into one helix
+  const h = ((i + 1) * 0.7548776662) % 1;
+  const y = -H * 0.46 - h * (H * 0.7 + 14 * Math.sqrt(i));
+  return { r, y, az, wx: r * Math.cos(az), wz: r * Math.sin(az) };
 }
 
 function addNode(trace, delay) {
@@ -98,16 +113,15 @@ function addNode(trace, delay) {
   const img = new Image();
   img.decoding = 'async';
   img.src = `/api/traces/${trace.id}/thumb`;
-  // squashing the spiral can land two memories on top of each other
   let spot = place(i);
-  const crowded = (p) => [...nodes.values()].some((n) => Math.hypot(n.x - p.x, n.y - p.y) < 112);
+  const crowded = (p) => [...nodes.values()].some((n) => Math.hypot(n.wx - p.wx, n.y - p.y, n.wz - p.wz) < 112);
   for (let push = 30; crowded(spot) && push < 600; push += 30) spot = place(i, push);
   const node = {
     trace, i, img,
     ...spot,
     tilt: (mulberry(i * 7919 + 13)() - 0.5) * 0.18,
     born: performance.now() + delay,
-    fx: 0, fy: 0, w: THUMB, h: THUMB,
+    fx: 0, fy: 0, z: 0, k: 1, w: THUMB, h: THUMB,
   };
   nodes.set(trace.id, node);
   return node;
@@ -153,17 +167,15 @@ function resize() {
 function bounds() {
   let x0 = -260, x1 = 260, y0 = -H, y1 = 70;
   for (const tip of tips) {
-    x0 = Math.min(x0, tip.x - 20);
-    x1 = Math.max(x1, tip.x + 20);
+    x1 = Math.max(x1, Math.abs(tip.r) + 20);
     y0 = Math.min(y0, tip.y - 20);
   }
   for (const n of nodes.values()) {
-    x0 = Math.min(x0, n.x - 70);
-    x1 = Math.max(x1, n.x + 70);
+    x1 = Math.max(x1, n.r * 1.15 + 60);
     y0 = Math.min(y0, n.y - 70);
     y1 = Math.max(y1, n.y + 80);
   }
-  return { x0, x1, y0, y1 };
+  return { x0: -x1, x1, y0, y1 };
 }
 
 function fit(animate) {
@@ -243,21 +255,23 @@ function drawTrunk(t) {
 
 function drawTwigs(t) {
   const sway = (y, depth) => Math.sin(t * 0.6 + y * 0.011) * depth * 2.2;
+  const lean = Math.cos(rot);
   for (const g of twigs) {
-    const shift = trunkX(g.rootY, t);
-    ctx.strokeStyle = `rgba(${INK}, ${0.3 - g.depth * 0.04})`;
+    const shift = trunkX(g.rootY, t) * lean;
+    const a = project(g.r1, g.y1, g.az1);
+    const b = project(g.r2, g.y2, g.az2);
+    const near = clamp(1 - b.z / 500, 0.45, 1.3);
+    ctx.strokeStyle = `rgba(${INK}, ${(0.3 - g.depth * 0.04) * near})`;
     ctx.lineWidth = Math.max(0.4, 1.8 - g.depth * 0.3);
-    line([
-      g.x1 + shift + sway(g.y1, g.depth - 1), g.y1,
-      g.x2 + shift + sway(g.y2, g.depth), g.y2,
-    ]);
+    line([a.x + shift + sway(g.y1, g.depth - 1), a.y, b.x + shift + sway(g.y2, g.depth), b.y]);
   }
   for (const tip of tips) {
     const glow = 0.2 + 0.3 * Math.sin(t * 1.3 + tip.phase);
     if (glow <= 0) continue;
+    const p = project(tip.r, tip.y, tip.az);
     ctx.fillStyle = `rgba(${INK}, ${glow})`;
     ctx.beginPath();
-    ctx.arc(tip.x + trunkX(tip.rootY, t) + sway(tip.y, tip.depth), tip.y, 1, 0, TAU);
+    ctx.arc(p.x + trunkX(tip.rootY, t) * lean + sway(tip.y, tip.depth), p.y, 1, 0, TAU);
     ctx.fill();
   }
 }
@@ -317,14 +331,13 @@ function drawNode(n, t, now) {
   if (age <= 0) return;
   const grown = 1 - Math.pow(1 - age, 3);
   const lit = n === hovered || n === opened;
-
-  // where it floats right now
-  n.fx = n.x + Math.sin(t * 0.5 + n.i * 1.7) * 7;
-  n.fy = n.y + Math.cos(t * 0.4 + n.i * 1.3) * 9;
+  // memories on the far side of the trunk recede
+  const fade = lit ? 1 : clamp(1 - n.z / 520, 0.35, 1);
+  ctx.globalAlpha = fade;
 
   // the branch holding it
   const ay = clamp(n.y + 150, -H * 0.97, -H * 0.3);
-  const ax = trunkX(ay, t);
+  const ax = trunkX(ay, t) * Math.cos(rot);
   const cx = ax + (n.fx - ax) * 0.15;
   const cy = n.fy + (ay - n.fy) * 0.2;
   const tone = lit ? ACCENT : INK;
@@ -348,7 +361,10 @@ function drawNode(n, t, now) {
     ctx.beginPath();
     ctx.arc(tx, ty, 2, 0, TAU);
     ctx.fill();
-    if (age < 0.75) return;
+    if (age < 0.75) {
+      ctx.globalAlpha = 1;
+      return;
+    }
   } else {
     const [px, py] = at((t * 0.11 + n.i * 0.37) % 1);
     ctx.fillStyle = `rgba(${INK}, 0.8)`;
@@ -369,15 +385,15 @@ function drawNode(n, t, now) {
   ctx.save();
   ctx.translate(n.fx, n.fy);
   ctx.rotate(n.tilt + Math.sin(t * 0.3 + n.i) * 0.04);
-  const pop = clamp((age - 0.75) / 0.25, 0, 1) * (lit ? 1.1 : 1);
+  const pop = clamp((age - 0.75) / 0.25, 0, 1) * (lit ? 1.1 : 1) * n.k;
   ctx.scale(pop, pop);
 
   ctx.fillStyle = BG;
   ctx.fillRect(-w / 2 - 3, -h / 2 - 3, w + 6, h + 6);
   if (loaded) {
-    ctx.globalAlpha = lit ? 1 : 0.8;
+    ctx.globalAlpha = fade * (lit ? 1 : 0.8);
     ctx.drawImage(lit ? n.img : n.mono, -w / 2, -h / 2, w, h);
-    ctx.globalAlpha = 1;
+    ctx.globalAlpha = fade;
   } else {
     ctx.fillStyle = `rgba(${INK}, 0.06)`;
     ctx.fillRect(-w / 2, -h / 2, w, h);
@@ -396,6 +412,21 @@ function drawNode(n, t, now) {
   if (n.trace.replies) label += '  ' + n.trace.replies;
   ctx.fillText(label.toUpperCase(), -w / 2 - 3, h / 2 + 15);
   ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
+// far to near, so nearer memories cover the ones behind them
+let order = [];
+function arrange(t) {
+  for (const n of nodes.values()) {
+    const p = project(n.r, n.y, n.az);
+    n.fx = p.x + Math.sin(t * 0.5 + n.i * 1.7) * 7;
+    n.fy = p.y + Math.cos(t * 0.4 + n.i * 1.3) * 9;
+    n.z = p.z;
+    n.k = p.k;
+  }
+  const top = (n) => (n === hovered ? 2 : n === opened ? 1 : 0);
+  order = [...nodes.values()].sort((a, b) => top(a) - top(b) || b.z - a.z);
 }
 
 let clock = 0;
@@ -413,6 +444,16 @@ function frame(now) {
     if (Math.abs(camTarget.x - cam.x) + Math.abs(camTarget.y - cam.y) < 0.5 && Math.abs(camTarget.s - cam.s) < 0.002) camTarget = null;
   }
 
+  if (rotTarget !== null) {
+    rot += (rotTarget - rot) * 0.09;
+    if (Math.abs(rotTarget - rot) < 0.002) rotTarget = null;
+  } else if (!drag && rotVel) {
+    rot += rotVel;
+    rotVel *= 0.92;
+    if (Math.abs(rotVel) < 0.0002) rotVel = 0;
+  }
+  arrange(t);
+
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.fillStyle = BG;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -420,13 +461,13 @@ function frame(now) {
 
   drawAtmosphere(t, now);
   drawGround(t);
+  const lit = (n) => n === hovered || n === opened;
+  for (const n of order) if (n.z > 0 && !lit(n)) drawNode(n, t, now);
   ctx.globalCompositeOperation = 'lighter';
   drawTwigs(t);
   drawTrunk(t);
   ctx.globalCompositeOperation = 'source-over';
-  for (const n of nodes.values()) if (n !== hovered && n !== opened) drawNode(n, t, now);
-  if (opened) drawNode(opened, t, now);
-  if (hovered && hovered !== opened) drawNode(hovered, t, now);
+  for (const n of order) if (n.z <= 0 || lit(n)) drawNode(n, t, now);
 
   requestAnimationFrame(frame);
 }
@@ -436,8 +477,8 @@ function frame(now) {
 function hit(px, py) {
   const p = toWorld(px, py);
   let found = null;
-  for (const n of nodes.values()) {
-    if (Math.abs(p.x - n.fx) <= n.w / 2 + 8 && Math.abs(p.y - n.fy) <= n.h / 2 + 12) found = n;
+  for (const n of order) {
+    if (Math.abs(p.x - n.fx) <= (n.w / 2 + 8) * n.k && Math.abs(p.y - n.fy) <= (n.h / 2 + 12) * n.k) found = n;
   }
   return found;
 }
@@ -452,9 +493,11 @@ function zoomAt(px, py, s) {
 function touched() {
   userMoved = true;
   camTarget = null;
+  rotTarget = null;
   $('hint').classList.add('gone');
 }
 
+const TURN = 0.006; // radians per pixel dragged
 const pointers = new Map();
 let drag = null;
 let pinch = null;
@@ -463,7 +506,8 @@ canvas.addEventListener('pointerdown', (e) => {
   canvas.setPointerCapture(e.pointerId);
   pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (pointers.size === 1) {
-    drag = { x: e.clientX, y: e.clientY, cx: cam.x, cy: cam.y, moved: false };
+    drag = { x: e.clientX, y: e.clientY, rot, cy: cam.y, moved: false, lastX: e.clientX, lastT: e.timeStamp };
+    rotVel = 0;
   } else if (pointers.size === 2) {
     const [a, b] = [...pointers.values()];
     pinch = { dist: Math.hypot(a.x - b.x, a.y - b.y), s: cam.s };
@@ -489,7 +533,13 @@ canvas.addEventListener('pointermove', (e) => {
     drag.moved = true;
     touched();
     canvas.classList.add('dragging');
-    cam.x = drag.cx - dx / cam.s;
+    // sideways turns the tree, up and down still moves along it
+    rot = drag.rot + dx * TURN;
+    // carry the spin on after release, at the speed of the last movement
+    const frames = Math.max(1, (e.timeStamp - drag.lastT) / 16.7);
+    rotVel = reducedMotion ? 0 : clamp(((e.clientX - drag.lastX) * TURN) / frames, -0.04, 0.04);
+    drag.lastX = e.clientX;
+    drag.lastT = e.timeStamp;
     cam.y = drag.cy - dy / cam.s;
   }
 });
@@ -498,6 +548,7 @@ function release(e) {
   if (!pointers.has(e.pointerId)) return;
   pointers.delete(e.pointerId);
   canvas.classList.remove('dragging');
+  if (drag && (!drag.moved || e.timeStamp - drag.lastT > 90)) rotVel = 0;
   if (drag && !drag.moved && e.type === 'pointerup') {
     const n = hit(e.clientX, e.clientY);
     if (n) openTrace(n);
@@ -590,6 +641,20 @@ $('d-bar').addEventListener('click', (e) => {
   audio.currentTime = clamp((e.clientX - box.left) / box.width, 0, 1) * audio.duration;
 });
 
+// Turn the tree so a memory comes round to the front, in the part of the
+// screen the panel leaves free.
+function face(node, panel) {
+  const angle = -Math.PI / 2 - (panel ? 0.6 : 0.25);
+  let turn = (angle - node.az - rot) % TAU;
+  if (turn > Math.PI) turn -= TAU;
+  if (turn < -Math.PI) turn += TAU;
+  rotTarget = rot + turn;
+  rotVel = 0;
+  const k = DEPTH / (DEPTH + node.r * Math.sin(angle));
+  const s = Math.max(cam.s, 0.9);
+  camTarget = { x: node.r * Math.cos(angle) * k + panel / 2 / s, y: node.y, s };
+}
+
 function openTrace(node) {
   const { trace } = node;
   opened = node;
@@ -615,10 +680,7 @@ function openTrace(node) {
   $('detail').querySelector('.panel-scroll').scrollTop = 0;
   history.replaceState(null, '', `#t=${trace.id}`);
 
-  // bring it into the part of the screen the panel leaves free
-  const panel = vw > 640 ? Math.min(440, vw) : 0;
-  const s = Math.max(cam.s, 0.9);
-  camTarget = { x: node.x + panel / 2 / s, y: node.y, s };
+  face(node, vw > 640 ? Math.min(440, vw) : 0);
   loadComments(trace.id);
 }
 
@@ -953,7 +1015,7 @@ $('compose-form').addEventListener('submit', async (e) => {
     resetCompose();
     closeCompose();
     userMoved = true;
-    camTarget = { x: node.x, y: node.y + 60, s: Math.max(cam.s, 0.8) };
+    face(node, 0);
   } catch (err) {
     $('f-status').textContent = err.message;
   } finally {
